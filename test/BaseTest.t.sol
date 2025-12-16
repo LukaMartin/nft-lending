@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {NFTLending} from "src/NFTLending.sol";
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 import {MockERC721} from "test/mocks/mockERC721.sol";
 import {MockWrappedNative} from "test/mocks/MockWrappedNative.sol";
 import {DeployNFTLending} from "script/DeployNFTLending.s.sol";
@@ -23,15 +22,14 @@ contract BaseTest is Test {
     address mockERC721TwoAddress;
 
     // User addresses
-    address Alice = makeAddr("Alice");
-    address Bob = makeAddr("Bob");
-    address Charlie = makeAddr("Charlie");
-    address Dave = makeAddr("Dave");
-    address Eve = makeAddr("Eve");
-    address Deployer;
+    address alice = makeAddr("alice");
+    address bob = makeAddr("bob");
+    address charlie = makeAddr("charlie");
+    address dave = makeAddr("dave");
+    address eve = makeAddr("eve");
+    address deployer;
 
     // Init variables
-    address deployer;
     address treasury;
     address wrappedNativeToken;
     uint256 loanFeeBps;
@@ -84,23 +82,22 @@ contract BaseTest is Test {
     }
 
     function _fundUsers() internal {
-        vm.label(Alice, "Alice");
-        vm.deal(payable(Alice), DEFAULT_ETH_BALANCE);
+        vm.label(alice, "alice");
+        vm.deal(payable(alice), DEFAULT_ETH_BALANCE);
 
-        vm.label(Bob, "Bob");
-        vm.deal(payable(Bob), DEFAULT_ETH_BALANCE);
+        vm.label(bob, "bob");
+        vm.deal(payable(bob), DEFAULT_ETH_BALANCE);
 
-        vm.label(Charlie, "Charlie");
-        vm.deal(payable(Charlie), DEFAULT_ETH_BALANCE);
+        vm.label(charlie, "charlie");
+        vm.deal(payable(charlie), DEFAULT_ETH_BALANCE);
 
-        vm.label(Dave, "Dave");
-        vm.deal(payable(Dave), DEFAULT_ETH_BALANCE);
+        vm.label(dave, "dave");
+        vm.deal(payable(dave), DEFAULT_ETH_BALANCE);
 
-        vm.label(Eve, "Eve");
-        vm.deal(payable(Eve), DEFAULT_ETH_BALANCE);
+        vm.label(eve, "eve");
+        vm.deal(payable(eve), DEFAULT_ETH_BALANCE);
 
-        Deployer = deployer;
-        vm.label(Deployer, "Deployer");
-        vm.deal(payable(Deployer), DEFAULT_ETH_BALANCE);
+        vm.label(deployer, "deployer");
+        vm.deal(payable(deployer), DEFAULT_ETH_BALANCE);
     }
 }

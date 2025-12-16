@@ -1,26 +1,5 @@
-// Layout of Contract:
-// version
-// imports
-// errors
-// interfaces, libraries, contracts
-// Type declarations
-// State variables
-// Events
-// Modifiers
-// Functions
+// SPDX-License-Identifier: MIT
 
-// Layout of Functions:
-// constructor
-// receive function (if exists)
-// fallback function (if exists)
-// external
-// public
-// internal
-// private
-// internal & private view & pure functions
-// external & public view & pure functions
-
-// SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.26;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -34,7 +13,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver {
     using SafeERC20 for IERC20;
 
-    // ========== ERRORS ==========
+    /*////////////////////////////////////////////////////////////////
+                                  ERRORS
+    ////////////////////////////////////////////////////////////////*/
 
     error CollectionNotWhitelisted(address collection);
     error InvalidTreasuryAddress(address treasuryAddress);
@@ -58,17 +39,9 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     error BatchLengthCannotBeZero();
     error BatchLimitExceeded(uint256 batchSize, uint256 batchLimit);
 
-    // ========== EVENTS ==========
-
-    event LoanOfferCreated(
-        uint256 offerId, address indexed lender, address indexed nftCollection, uint256 interestRate, uint64 loanDuration, uint64 offerExpiry
-    );
-    event LoanAccepted(uint256 loanId, uint256 offerId, address indexed borrower, uint256 tokenId);
-    event LoanRepaid(uint256 loanId, address indexed borrower);
-    event CollateralClaimed(uint256 loanId, address indexed lender);
-    event LoanOfferCanceled(uint256 offerId, address indexed lender);
-
-    // ========== STRUCTS ==========
+    /*////////////////////////////////////////////////////////////////
+                            TYPE DECLERATIONS
+    ////////////////////////////////////////////////////////////////*/
 
     struct LoanOffer {
         address lender;
@@ -94,7 +67,9 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         bool collateralClaimed;
     }
 
-    // ========== STATE VARIABLES ==========
+    /*////////////////////////////////////////////////////////////////
+                             STATE VARIABLES
+    ////////////////////////////////////////////////////////////////*/
 
     uint256 private _nextOfferId;
     uint256 private _nextLoanId;
@@ -111,7 +86,26 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     mapping(uint256 => Loan) public loans;
     mapping(address => bool) public whitelistedCollections;
 
-    // ========== MODIFIERS ==========
+    /*////////////////////////////////////////////////////////////////
+                                  EVENTS
+    ////////////////////////////////////////////////////////////////*/
+
+    event LoanOfferCreated(
+        uint256 offerId,
+        address indexed lender,
+        address indexed nftCollection,
+        uint256 interestRate,
+        uint64 loanDuration,
+        uint64 offerExpiry
+    );
+    event LoanAccepted(uint256 loanId, uint256 offerId, address indexed borrower, uint256 tokenId);
+    event LoanRepaid(uint256 loanId, address indexed borrower);
+    event CollateralClaimed(uint256 loanId, address indexed lender);
+    event LoanOfferCanceled(uint256 offerId, address indexed lender);
+
+    /*////////////////////////////////////////////////////////////////
+                                MODIFIERS
+    ////////////////////////////////////////////////////////////////*/
 
     modifier onlyWhitelistedCollection(address collection) {
         if (!whitelistedCollections[collection]) {
@@ -120,7 +114,9 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         _;
     }
 
-    // ========== INITIALIZER ==========
+    /*////////////////////////////////////////////////////////////////
+                                FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
 
     constructor(
         address treasuryAddress,
@@ -148,22 +144,29 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         _batchLimit = batchLimit;
     }
 
-    // ========== PUBLIC FUNCTIONS ==========
+    /*////////////////////////////////////////////////////////////////
+                            RECEIVE FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
 
-    function createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 loanDuration, uint64 offerExpiry)
-        external
-        onlyWhitelistedCollection(nftCollection)
-        nonReentrant
-        returns (uint256)
-    {
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
+    /*////////////////////////////////////////////////////////////////
+                            EXTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
+
+    function createLoanOffer(
+        address nftCollection,
+        uint96 principal,
+        uint32 interestRateBps,
+        uint64 loanDuration,
+        uint64 offerExpiry
+    ) external onlyWhitelistedCollection(nftCollection) nonReentrant returns (uint256) {
         return _createLoanOffer(nftCollection, principal, interestRateBps, loanDuration, offerExpiry);
     }
 
-    function acceptLoanOffer(uint256 offerId, uint256 tokenId)
-        external
-        nonReentrant
-        returns (uint256)
-    {
+    function acceptLoanOffer(uint256 offerId, uint256 tokenId) external nonReentrant returns (uint256) {
         return _acceptLoanOffer(offerId, tokenId);
     }
 
@@ -190,7 +193,10 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
         _validateBatchSize(numOffers);
 
-        if (numOffers != interestRatesBps.length || numOffers != loanDurations.length || numOffers != offerExpiries.length) {
+        if (
+            numOffers != interestRatesBps.length || numOffers != loanDurations.length
+                || numOffers != offerExpiries.length
+        ) {
             revert InputParameterLengthMismatch();
         }
 
@@ -207,16 +213,19 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         uint256[] memory loanOfferIds = new uint256[](numOffers);
 
         for (uint256 i = 0; i < numOffers; i++) {
-            loanOfferIds[i] = _createLoanOffer(nftCollection, principalAmounts[i], interestRatesBps[i], loanDurations[i], offerExpiries[i]);
+            loanOfferIds[i] = _createLoanOffer(
+                nftCollection, principalAmounts[i], interestRatesBps[i], loanDurations[i], offerExpiries[i]
+            );
         }
 
         return loanOfferIds;
     }
 
-    function batchAcceptLoanOffers(
-        uint256[] calldata offerIds,
-        uint256[] calldata tokenIds
-    ) external nonReentrant returns (uint256[] memory) {
+    function batchAcceptLoanOffers(uint256[] calldata offerIds, uint256[] calldata tokenIds)
+        external
+        nonReentrant
+        returns (uint256[] memory)
+    {
         _validateBatchSize(offerIds.length);
 
         if (offerIds.length != tokenIds.length) {
@@ -255,12 +264,49 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         }
     }
 
-    // ========== INTERNAL FUNCTIONS ==========
+    function setCollectionWhitelisted(address collection, bool status) external onlyOwner {
+        whitelistedCollections[collection] = status;
+    }
 
-    function _createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 loanDuration, uint64 offerExpiry)
-        internal
-        returns (uint256)
-    {
+    function setLoanFeeBps(uint256 newLoanFeeBps) external onlyOwner {
+        _loanFeeBps = newLoanFeeBps;
+    }
+
+    function setMinLoanDuration(uint256 minLoanDuration) external onlyOwner {
+        _minLoanDuration = minLoanDuration;
+    }
+
+    function setMaxLoanDuration(uint256 maxLoanDuration) external onlyOwner {
+        _maxLoanDuration = maxLoanDuration;
+    }
+
+    function setMinInterestRate(uint256 minInterestRateBps) external onlyOwner {
+        _minInterestRateBps = minInterestRateBps;
+    }
+
+    function setMaxInterestRate(uint256 maxInterestRateBps) external onlyOwner {
+        _maxInterestRateBps = maxInterestRateBps;
+    }
+
+    function setTreasuryAddress(address treasuryAddress) external onlyOwner {
+        _treasuryAddress = treasuryAddress;
+    }
+
+    function setBatchLimit(uint256 batchLimit) external onlyOwner {
+        _batchLimit = batchLimit;
+    }
+
+    /*////////////////////////////////////////////////////////////////
+                            INTERNAL FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
+
+    function _createLoanOffer(
+        address nftCollection,
+        uint96 principal,
+        uint32 interestRateBps,
+        uint64 loanDuration,
+        uint64 offerExpiry
+    ) internal returns (uint256) {
         if (loanDuration < _minLoanDuration || loanDuration > _maxLoanDuration) {
             revert InvalidDuration();
         }
@@ -417,6 +463,10 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         IERC721(loan.nftCollection).safeTransferFrom(address(this), lender, loan.tokenId);
     }
 
+    /*////////////////////////////////////////////////////////////////
+                      INTERNAL VIEW & PURE FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
+
     function _validateBatchSize(uint256 batchSize) internal view {
         if (batchSize == 0) {
             revert BatchLengthCannotBeZero();
@@ -424,6 +474,10 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         if (batchSize > _batchLimit) {
             revert BatchLimitExceeded(batchSize, _batchLimit);
         }
+    }
+
+    function _calculateLoanFee(uint256 principal) internal view returns (uint256) {
+        return (principal * _loanFeeBps) / 10000;
     }
 
     function _calculateInterest(uint256 principal, uint256 interestRateBps, uint256 duration)
@@ -434,10 +488,6 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         return (principal * interestRateBps * duration) / (10000 * 365 days);
     }
 
-    function _calculateLoanFee(uint256 principal) internal view returns (uint256) {
-        return (principal * _loanFeeBps) / 10000;
-    }
-
     function _calculateLoanAmountAfterFee(uint256 principal, uint256 fee) internal pure returns (uint256) {
         return principal - fee;
     }
@@ -446,41 +496,9 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         return principal + interest;
     }
 
-    // ========== OWNER FUNCTIONS ==========
-
-    function setCollectionWhitelisted(address collection, bool status) external onlyOwner {
-        whitelistedCollections[collection] = status;
-    }
-
-    function setLoanFeeBps(uint256 newLoanFeeBps) external onlyOwner {
-        _loanFeeBps = newLoanFeeBps;
-    }
-
-    function setMinLoanDuration(uint256 minLoanDuration) external onlyOwner {
-        _minLoanDuration = minLoanDuration;
-    }
-
-    function setMaxLoanDuration(uint256 maxLoanDuration) external onlyOwner {
-        _maxLoanDuration = maxLoanDuration;
-    }
-
-    function setMinInterestRate(uint256 minInterestRateBps) external onlyOwner {
-        _minInterestRateBps = minInterestRateBps;
-    }
-
-    function setMaxInterestRate(uint256 maxInterestRateBps) external onlyOwner {
-        _maxInterestRateBps = maxInterestRateBps;
-    }
-
-    function setTreasuryAddress(address treasuryAddress) external onlyOwner {
-        _treasuryAddress = treasuryAddress;
-    }
-
-    function setBatchLimit(uint256 batchLimit) external onlyOwner {
-        _batchLimit = batchLimit;
-    }
-
-    // ========== VIEW FUNCTIONS ==========
+    /*////////////////////////////////////////////////////////////////
+                      EXTERNAL VIEW & PURE FUNCTIONS
+    ////////////////////////////////////////////////////////////////*/
 
     function getLoanOfferCount() external view returns (uint256) {
         return _nextOfferId;
@@ -524,11 +542,5 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
     function getBatchLimit() external view returns (uint256) {
         return _batchLimit;
-    }
-
-    // ========== ERC721 RECEIVER ==========
-
-    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
-        return this.onERC721Received.selector;
     }
 }

@@ -12,3 +12,6 @@ docs/
 
 # Dotenv file
 .env
+
+# Header script
+header-script.js
