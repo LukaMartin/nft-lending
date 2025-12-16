@@ -44,7 +44,9 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     error LenderInsufficientWrappedNativeAllowance(uint256 lenderAllowance);
     error InvalidDuration();
     error InvalidInterestRate();
+    error InvalidOfferExpiry(uint64 offerExpiry, uint256 currentTimestamp);
     error OfferInactive();
+    error OfferExpired();
     error NFTCollectionMismatch(address expectedNftCollection, address providedNftCollection);
     error NotNFTOwner(address expectedNftOwner, address functionCaller);
     error NotLender(address expectedLender, address functionCaller);
@@ -59,7 +61,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     // ========== EVENTS ==========
 
     event LoanOfferCreated(
-        uint256 offerId, address indexed lender, address indexed nftCollection, uint256 interestRate, uint256 duration
+        uint256 offerId, address indexed lender, address indexed nftCollection, uint256 interestRate, uint64 loanDuration, uint64 offerExpiry
     );
     event LoanAccepted(uint256 loanId, uint256 offerId, address indexed borrower, uint256 tokenId);
     event LoanRepaid(uint256 loanId, address indexed borrower);
@@ -73,7 +75,8 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         address nftCollection;
         uint96 principal;
         uint32 interestRateBps;
-        uint64 duration;
+        uint64 loanDuration;
+        uint64 offerExpiry;
         bool active;
     }
 
@@ -85,7 +88,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         uint256 tokenId;
         address nftCollection;
         uint64 startTime;
-        uint64 duration;
+        uint64 loanDuration;
         uint32 interestRateBps;
         bool repaid;
         bool collateralClaimed;
@@ -147,21 +150,21 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
     // ========== PUBLIC FUNCTIONS ==========
 
-    function createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 duration)
+    function createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 loanDuration, uint64 offerExpiry)
         external
         onlyWhitelistedCollection(nftCollection)
         nonReentrant
         returns (uint256)
     {
-        return _createLoanOffer(nftCollection, principal, interestRateBps, duration);
+        return _createLoanOffer(nftCollection, principal, interestRateBps, loanDuration, offerExpiry);
     }
 
-    function acceptLoanOffer(uint256 offerId, address nftCollection, uint256 tokenId)
+    function acceptLoanOffer(uint256 offerId, uint256 tokenId)
         external
         nonReentrant
         returns (uint256)
     {
-        return _acceptLoanOffer(offerId, nftCollection, tokenId);
+        return _acceptLoanOffer(offerId, tokenId);
     }
 
     function cancelLoanOffer(uint256 offerId) external nonReentrant {
@@ -180,13 +183,14 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         address nftCollection,
         uint96[] calldata principalAmounts,
         uint32[] calldata interestRatesBps,
-        uint64[] calldata durations
+        uint64[] calldata loanDurations,
+        uint64[] calldata offerExpiries
     ) external nonReentrant returns (uint256[] memory) {
         uint256 numOffers = principalAmounts.length;
 
         _validateBatchSize(numOffers);
 
-        if (numOffers != interestRatesBps.length || numOffers != durations.length) {
+        if (numOffers != interestRatesBps.length || numOffers != loanDurations.length || numOffers != offerExpiries.length) {
             revert InputParameterLengthMismatch();
         }
 
@@ -203,7 +207,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         uint256[] memory loanOfferIds = new uint256[](numOffers);
 
         for (uint256 i = 0; i < numOffers; i++) {
-            loanOfferIds[i] = _createLoanOffer(nftCollection, principalAmounts[i], interestRatesBps[i], durations[i]);
+            loanOfferIds[i] = _createLoanOffer(nftCollection, principalAmounts[i], interestRatesBps[i], loanDurations[i], offerExpiries[i]);
         }
 
         return loanOfferIds;
@@ -211,19 +215,18 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
     function batchAcceptLoanOffers(
         uint256[] calldata offerIds,
-        address[] calldata nftCollections,
         uint256[] calldata tokenIds
     ) external nonReentrant returns (uint256[] memory) {
         _validateBatchSize(offerIds.length);
 
-        if (offerIds.length != tokenIds.length || offerIds.length != nftCollections.length) {
+        if (offerIds.length != tokenIds.length) {
             revert InputParameterLengthMismatch();
         }
 
         uint256[] memory loanIds = new uint256[](offerIds.length);
 
         for (uint256 i = 0; i < offerIds.length; i++) {
-            loanIds[i] = _acceptLoanOffer(offerIds[i], nftCollections[i], tokenIds[i]);
+            loanIds[i] = _acceptLoanOffer(offerIds[i], tokenIds[i]);
         }
         return loanIds;
     }
@@ -254,15 +257,18 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
     // ========== INTERNAL FUNCTIONS ==========
 
-    function _createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 duration)
+    function _createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 loanDuration, uint64 offerExpiry)
         internal
         returns (uint256)
     {
-        if (duration < _minLoanDuration || duration > _maxLoanDuration) {
+        if (loanDuration < _minLoanDuration || loanDuration > _maxLoanDuration) {
             revert InvalidDuration();
         }
         if (interestRateBps < _minInterestRateBps || interestRateBps > _maxInterestRateBps) {
             revert InvalidInterestRate();
+        }
+        if (block.timestamp > offerExpiry) {
+            revert InvalidOfferExpiry(offerExpiry, block.timestamp);
         }
 
         uint256 lenderBalance = IERC20(_wrappedNative).balanceOf(msg.sender);
@@ -282,28 +288,29 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
             nftCollection: nftCollection,
             principal: principal,
             interestRateBps: interestRateBps,
-            duration: duration,
+            loanDuration: loanDuration,
+            offerExpiry: offerExpiry,
             active: true
         });
 
         _nextOfferId++;
-        emit LoanOfferCreated(offerId, msg.sender, nftCollection, interestRateBps, duration);
+        emit LoanOfferCreated(offerId, msg.sender, nftCollection, interestRateBps, loanDuration, offerExpiry);
 
         return offerId;
     }
 
-    function _acceptLoanOffer(uint256 offerId, address nftCollection, uint256 tokenId) internal returns (uint256) {
+    function _acceptLoanOffer(uint256 offerId, uint256 tokenId) internal returns (uint256) {
         LoanOffer storage loanOffer = loanOffers[offerId];
 
         if (!loanOffer.active) {
             revert OfferInactive();
         }
 
-        address loanOfferNftCollection = loanOffer.nftCollection;
-        if (loanOfferNftCollection != nftCollection) {
-            revert NFTCollectionMismatch(loanOfferNftCollection, nftCollection);
+        if (block.timestamp > loanOffer.offerExpiry) {
+            revert OfferExpired();
         }
 
+        address nftCollection = loanOffer.nftCollection;
         address nftOwner = IERC721(nftCollection).ownerOf(tokenId);
         if (nftOwner != msg.sender) {
             revert NotNFTOwner(nftOwner, msg.sender);
@@ -323,7 +330,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
             tokenId: tokenId,
             nftCollection: nftCollection,
             startTime: uint64(block.timestamp),
-            duration: loanOffer.duration,
+            loanDuration: loanOffer.loanDuration,
             interestRateBps: loanOffer.interestRateBps,
             repaid: false,
             collateralClaimed: false
@@ -369,7 +376,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         }
 
         uint256 loanStartTime = loan.startTime;
-        uint256 loanEndTimestamp = loanStartTime + loan.duration;
+        uint256 loanEndTimestamp = loanStartTime + loan.loanDuration;
         if (block.timestamp > loanEndTimestamp) {
             revert LoanExpired(block.timestamp, loanEndTimestamp);
         }
@@ -395,7 +402,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         if (loan.collateralClaimed) {
             revert CollateralAlreadyClaimed();
         }
-        if (block.timestamp <= loan.startTime + loan.duration) {
+        if (block.timestamp <= loan.startTime + loan.loanDuration) {
             revert LoanNotExpired();
         }
 

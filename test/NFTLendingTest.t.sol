@@ -12,10 +12,11 @@ contract NFTLendingTest is BaseTest {
     uint96 public constant DEFAULT_PRINCIPAL = 1 ether;
     uint32 public constant DEFAULT_INTEREST_RATE_BPS = 10000;
     uint64 public constant DEFAULT_DURATION = 30 days;
+    uint64 public constant DEFAULT_OFFER_EXPIRY = 7 days;
 
     // Events
     event LoanOfferCreated(
-        uint256 offerId, address indexed lender, address indexed nftCollection, uint256 interestRate, uint256 duration
+        uint256 offerId, address indexed lender, address indexed nftCollection, uint256 interestRate, uint64 loanDuration, uint64 offerExpiry
     );
 
     function setUp() public virtual override {
@@ -53,7 +54,7 @@ contract NFTLendingTest is BaseTest {
         vm.stopPrank();
     }
 
-    function _createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 duration)
+    function _createLoanOffer(address nftCollection, uint96 principal, uint32 interestRateBps, uint64 loanDuration, uint64 offerExpiry)
         internal
         returns (uint256)
     {
@@ -63,7 +64,7 @@ contract NFTLendingTest is BaseTest {
         mockWrappedNative.approve(address(nftLending), principal);
 
         // Create loan offer
-        uint256 loanOfferId = nftLending.createLoanOffer(address(nftCollection), principal, interestRateBps, duration);
+        uint256 loanOfferId = nftLending.createLoanOffer(address(nftCollection), principal, interestRateBps, loanDuration, offerExpiry);
         vm.stopPrank();
 
         return loanOfferId;
@@ -71,45 +72,43 @@ contract NFTLendingTest is BaseTest {
 
     function _setupBatchLoanOffers(uint256 numOffers, address nftCollection)
         internal
-        returns (uint256[] memory, uint96[] memory, uint32[] memory, uint64[] memory, uint256[] memory)
+        returns (uint256[] memory, uint96[] memory, uint32[] memory, uint64[] memory, uint64[] memory, uint256[] memory)
     {
         uint96[] memory principalAmounts = new uint96[](numOffers);
         uint32[] memory interestRatesBps = new uint32[](numOffers);
-        uint64[] memory durations = new uint64[](numOffers);
+        uint64[] memory loanDurations = new uint64[](numOffers);
+        uint64[] memory offerExpiries = new uint64[](numOffers);
         uint256[] memory interestAmounts = new uint256[](numOffers);
         for (uint256 i = 0; i < numOffers; i++) {
             principalAmounts[i] = uint96(bound(vm.randomUint(), 0.01 ether, 10 ether));
             interestRatesBps[i] = uint32(bound(vm.randomUint(), minInterestRateBps, maxInterestRateBps));
-            durations[i] = uint64(bound(vm.randomUint(), minLoanDuration, maxLoanDuration));
+            loanDurations[i] = uint64(bound(vm.randomUint(), minLoanDuration, maxLoanDuration));
+            offerExpiries[i] = uint64(block.timestamp + loanDurations[i]);
         }
 
         // Create loan offers
         vm.prank(Alice);
         uint256[] memory loanOfferIds =
-            nftLending.batchCreateLoanOffers(nftCollection, principalAmounts, interestRatesBps, durations);
+            nftLending.batchCreateLoanOffers(nftCollection, principalAmounts, interestRatesBps, loanDurations, offerExpiries);
 
         for (uint256 i = 0; i < numOffers; i++) {
-            interestAmounts[i] = _getInterest(principalAmounts[i], interestRatesBps[i], durations[i]);
+            interestAmounts[i] = _getInterest(principalAmounts[i], interestRatesBps[i], loanDurations[i]);
         }
 
-        return (loanOfferIds, principalAmounts, interestRatesBps, durations, interestAmounts);
+        return (loanOfferIds, principalAmounts, interestRatesBps, loanDurations, offerExpiries, interestAmounts);
     }
 
-    function _acceptBatchLoanOffers(uint256[] memory loanOfferIds, address nftCollection)
+    function _acceptBatchLoanOffers(uint256[] memory loanOfferIds)
         internal
         returns (uint256[] memory)
     {
-        address[] memory nftCollections = new address[](loanOfferIds.length);
-        for (uint256 i = 0; i < loanOfferIds.length; i++) {
-            nftCollections[i] = nftCollection;
-        }
         uint256[] memory tokenIds = new uint256[](loanOfferIds.length);
         for (uint256 i = 0; i < loanOfferIds.length; i++) {
             tokenIds[i] = i + 1;
         }
 
         vm.prank(Bob);
-        uint256[] memory loanIds = nftLending.batchAcceptLoanOffers(loanOfferIds, nftCollections, tokenIds);
+        uint256[] memory loanIds = nftLending.batchAcceptLoanOffers(loanOfferIds, tokenIds);
 
         return loanIds;
     }
@@ -131,73 +130,93 @@ contract NFTLendingTest is BaseTest {
     function testCreateLoanOfferRevertsWhenDurationIsLessThanMinDuration() public {
         // Initialize variables
         uint64 duration = 0.5 days; // Min duration is 1 day, attempt to create offer with 0.5 days
+        uint64 offerExpiry = uint64(block.timestamp + duration);
 
         // Create loan offer with duration less than min duration
         vm.startPrank(Alice);
         mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
         mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
         vm.expectRevert(NFTLending.InvalidDuration.selector);
-        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, duration);
+        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, duration, offerExpiry);
+        vm.stopPrank();
     }
 
     function testCreateLoanOfferRevertsWhenInterestRateIsLessThanMinInterestRate() public {
         // Initialize variables
         uint32 interestRateBps = 99; // Min interest rate is 100 bps, attempt to create offer with 99 bps
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
 
         // Create loan offer with interest rate less than min interest rate
         vm.startPrank(Alice);
         mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
         mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
         vm.expectRevert(NFTLending.InvalidInterestRate.selector);
-        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, interestRateBps, DEFAULT_DURATION);
+        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, interestRateBps, DEFAULT_DURATION, offerExpiry);
         vm.stopPrank();
     }
 
     function testCreateLoanOfferRevertsWhenInterestRateIsGreaterThanMaxInterestRate() public {
         // Initialize variables
         uint32 interestRateBps = 30001; // Max interest rate is 30000 bps, attempt to create offer with 30001 bps
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
 
         // Create loan offer with interest rate greater than max interest rate
         vm.startPrank(Alice);
         mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
         mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
         vm.expectRevert(NFTLending.InvalidInterestRate.selector);
-        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, interestRateBps, DEFAULT_DURATION);
+        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, interestRateBps, DEFAULT_DURATION, offerExpiry);
         vm.stopPrank();
     }
 
     function testCreateLoanOfferRevertsWhenDurationIsGreaterThanMaxDuration() public {
         // Initialize variables
         uint64 duration = 30 days + 1 seconds; // Max duration is 30 days
+        uint64 offerExpiry = uint64(block.timestamp + duration);
 
         // Create loan offer with duration greater than max duration
         vm.startPrank(Alice);
         mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
         mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
         vm.expectRevert(NFTLending.InvalidDuration.selector);
-        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, duration);
+        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, duration, offerExpiry);
+        vm.stopPrank();
+    }
+
+    function testCreateLoanOfferRevertsWhenOfferExpiryIsInThePast() public {
+        // Initialize variables
+        uint64 offerExpiry = uint64(block.timestamp - 1 seconds);
+
+        // Create loan offer with offer expiry in the past
+        vm.startPrank(Alice);
+        mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
+        mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
+        vm.expectRevert(abi.encodeWithSelector(NFTLending.InvalidOfferExpiry.selector, offerExpiry, block.timestamp));
+        nftLending.createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
         vm.stopPrank();
     }
 
     function testCreateLoanOfferRevertsWhenCollectionIsNotWhitelisted() public {
         // Initialize variables
         address nftCollection = address(0);
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
 
         // Create loan offer with collection not whitelisted
         vm.startPrank(Alice);
         mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
         mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
         vm.expectRevert(abi.encodeWithSelector(NFTLending.CollectionNotWhitelisted.selector, nftCollection));
-        nftLending.createLoanOffer(nftCollection, DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION);
+        nftLending.createLoanOffer(nftCollection, DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
         vm.stopPrank();
     }
 
     function testCreateLoanOfferIncrementsNextOfferId() public {
-        // Get next offer id
+        // Initialize variables
         uint256 nextOfferId = nftLending.getLoanOfferCount();
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
 
         // Create loan offer
-        _createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION);
+        _createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
 
         // Assertions
         assertEq(nftLending.getLoanOfferCount(), nextOfferId + 1);
@@ -206,10 +225,11 @@ contract NFTLendingTest is BaseTest {
     function testCreateLoanOfferAndAssertLoanOfferDetails() public {
         // Get current loan offer count
         uint256 loanOfferCount = nftLending.getLoanOfferCount();
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
 
         // Create loan offer
         uint256 loanOfferId =
-            _createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION);
+            _createLoanOffer(address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
 
         // Get loan offer
         NFTLending.LoanOffer memory loanOffer = nftLending.getLoanOffer(loanOfferId);
@@ -220,43 +240,88 @@ contract NFTLendingTest is BaseTest {
         assertEq(loanOffer.nftCollection, address(mockERC721One));
         assertEq(loanOffer.principal, DEFAULT_PRINCIPAL);
         assertEq(loanOffer.interestRateBps, DEFAULT_INTEREST_RATE_BPS);
-        assertEq(loanOffer.duration, DEFAULT_DURATION);
+        assertEq(loanOffer.loanDuration, DEFAULT_DURATION);
+        assertEq(loanOffer.offerExpiry, offerExpiry);
         assertEq(loanOffer.active, true);
     }
 
     function testCreateLoanOfferEmitsLoanOfferCreatedEvent() public {
+        // Initialize variables
         uint256 loanOfferId = nftLending.getLoanOfferCount();
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
 
         // Create loan offer
         vm.startPrank(Alice);
         mockWrappedNative.deposit{value: DEFAULT_PRINCIPAL}();
         mockWrappedNative.approve(address(nftLending), DEFAULT_PRINCIPAL);
         vm.expectEmit(true, true, true, true);
-        emit LoanOfferCreated(loanOfferId, Alice, address(mockERC721One), DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION);
+        emit LoanOfferCreated(loanOfferId, Alice, address(mockERC721One), DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
         nftLending.createLoanOffer(
-            address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION
+            address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry
         );
         vm.stopPrank();
     }
 
-    function testAcceptLoanOffer() public {
+    function testAcceptLoanOfferRevertsWhenOfferIsInactive() public {
+        // Initialize variables
+        uint256 tokenId = 1;
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
+
         // Create loan offer
         uint256 loanOfferId =
-            _createLoanOffer(address(mockERC721Two), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION);
+            _createLoanOffer(address(mockERC721Two), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
+
+        // Accept loan offer
+        vm.prank(Bob);
+        nftLending.acceptLoanOffer(loanOfferId, tokenId);
+
+        // Try to accept loan offer again
+        vm.prank(Bob);
+        vm.expectRevert(NFTLending.OfferInactive.selector);
+        nftLending.acceptLoanOffer(loanOfferId, tokenId);
+    }
+
+    function testAcceptLoanOfferRevertsWhenOfferIsExpired() public {
+        // Initialize variables
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
+        uint256 tokenId = 1;
+
+        // Create loan offer
+        uint256 loanOfferId =
+            _createLoanOffer(address(mockERC721Two), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
+
+        // Warp to offer expiry + 1 second
+        vm.warp(offerExpiry + 1 seconds);
+
+        // Try to accept loan offer
+        vm.prank(Bob);
+        vm.expectRevert(NFTLending.OfferExpired.selector);
+        nftLending.acceptLoanOffer(loanOfferId, tokenId);
+    }
+
+    function testAcceptLoanOffer() public {
+        // Initialize variables
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
+
+        // Create loan offer
+        uint256 loanOfferId =
+            _createLoanOffer(address(mockERC721Two), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
 
         // Loan details
-        address nftCollection = address(mockERC721Two);
         uint256 tokenId = 1;
 
         // Accept loan offer
         vm.prank(Bob);
-        nftLending.acceptLoanOffer(loanOfferId, nftCollection, tokenId);
+        nftLending.acceptLoanOffer(loanOfferId, tokenId);
     }
 
     function testCancelLoanOffer() public {
+        // Initialize variables
+        uint64 offerExpiry = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
+        
         // Create loan offer
         uint256 loanOfferId =
-            _createLoanOffer(address(mockERC721Two), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION);
+            _createLoanOffer(address(mockERC721Two), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry);
 
         // Cancel loan offer
         vm.prank(Alice);
