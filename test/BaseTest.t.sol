@@ -22,14 +22,14 @@ contract BaseTest is Test {
     address mockERC721TwoAddress;
 
     // User addresses
-    address alice = makeAddr("alice");
-    address bob = makeAddr("bob");
-    address charlie = makeAddr("charlie");
-    address dave = makeAddr("dave");
-    address eve = makeAddr("eve");
-    address deployer;
+    address immutable ALICE = makeAddr("alice");
+    address immutable BOB = makeAddr("bob");
+    address immutable CHARLIE = makeAddr("charlie");
+    address immutable DAVE = makeAddr("dave");
+    address immutable EVE = makeAddr("eve");
 
     // Init variables
+    address deployer;
     address treasury;
     address wrappedNativeToken;
     uint256 loanFeeBps;
@@ -82,22 +82,22 @@ contract BaseTest is Test {
     }
 
     function _fundUsers() internal {
-        vm.label(alice, "alice");
-        vm.deal(payable(alice), DEFAULT_ETH_BALANCE);
+        vm.label(ALICE, "ALICE");
+        vm.deal(payable(ALICE), DEFAULT_ETH_BALANCE);
 
-        vm.label(bob, "bob");
-        vm.deal(payable(bob), DEFAULT_ETH_BALANCE);
+        vm.label(BOB, "BOB");
+        vm.deal(payable(BOB), DEFAULT_ETH_BALANCE);
 
-        vm.label(charlie, "charlie");
-        vm.deal(payable(charlie), DEFAULT_ETH_BALANCE);
+        vm.label(CHARLIE, "CHARLIE");
+        vm.deal(payable(CHARLIE), DEFAULT_ETH_BALANCE);
 
-        vm.label(dave, "dave");
-        vm.deal(payable(dave), DEFAULT_ETH_BALANCE);
+        vm.label(DAVE, "DAVE");
+        vm.deal(payable(DAVE), DEFAULT_ETH_BALANCE);
 
-        vm.label(eve, "eve");
-        vm.deal(payable(eve), DEFAULT_ETH_BALANCE);
+        vm.label(EVE, "EVE");
+        vm.deal(payable(EVE), DEFAULT_ETH_BALANCE);
 
-        vm.label(deployer, "deployer");
+        vm.label(deployer, "DEPLOYER");
         vm.deal(payable(deployer), DEFAULT_ETH_BALANCE);
     }
 }

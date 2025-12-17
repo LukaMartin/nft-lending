@@ -8,17 +8,10 @@ optimizer_runs = 200
 evm_version = "cancun"
 memory_limit = 33554432  # 32MB
 gas_limit = 9223372036854775807  # max u64
-ffi = true
-ast = true
-build_info = true
-extra_output = ["storageLayout"]
-viaIR = true 
-
+viaIR = true
 
 remappings = [
-    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
-    '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
-    'openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/src'
+    '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts'
 ]
 
 [rpc_endpoints]
