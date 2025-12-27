@@ -22,8 +22,8 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     error InvalidTreasuryAddress(address treasuryAddress);
     error InvalidWrappedNativeAddress(address wrappedNative);
     error InputParameterLengthMismatch();
-    error LenderInsufficientWrappedNativeBalance(uint256 lenderBalance);
-    error LenderInsufficientWrappedNativeAllowance(uint256 lenderAllowance);
+    error LenderInsufficientWrappedNativeBalance(uint256 lenderBalance, uint256 requiredBalance);
+    error LenderInsufficientWrappedNativeAllowance(uint256 lenderAllowance, uint256 requiredAllowance);
     error InvalidDuration();
     error InvalidInterestRate();
     error InvalidOfferExpiry(uint64 offerExpiry, uint256 currentTimestamp);
@@ -208,7 +208,12 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
         uint256 lenderBalance = IERC20(_wrappedNative).balanceOf(msg.sender);
         if (totalPrincipalAmount > lenderBalance) {
-            revert LenderInsufficientWrappedNativeBalance(lenderBalance);
+            revert LenderInsufficientWrappedNativeBalance(lenderBalance, totalPrincipalAmount);
+        }
+
+        uint256 lenderAllowance = IERC20(_wrappedNative).allowance(msg.sender, address(this));
+        if (totalPrincipalAmount > lenderAllowance) {
+            revert LenderInsufficientWrappedNativeAllowance(lenderAllowance, totalPrincipalAmount);
         }
 
         uint256[] memory loanOfferIds = new uint256[](numOffers);
@@ -320,12 +325,12 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
         uint256 lenderBalance = IERC20(_wrappedNative).balanceOf(msg.sender);
         if (principal > lenderBalance) {
-            revert LenderInsufficientWrappedNativeBalance(lenderBalance);
+            revert LenderInsufficientWrappedNativeBalance(lenderBalance, principal);
         }
 
         uint256 lenderAllowance = IERC20(_wrappedNative).allowance(msg.sender, address(this));
         if (principal > lenderAllowance) {
-            revert LenderInsufficientWrappedNativeAllowance(lenderAllowance);
+            revert LenderInsufficientWrappedNativeAllowance(lenderAllowance, principal);
         }
 
         uint256 offerId = _nextOfferId;

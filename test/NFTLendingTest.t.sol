@@ -43,13 +43,23 @@ contract NFTLendingTest is BaseTest {
         mockERC721One.setTokenId(ALICE, 1);
         mockERC721One.setTokenId(ALICE, 2);
         mockERC721One.setTokenId(ALICE, 3);
+        mockERC721One.setTokenId(ALICE, 4);
+        mockERC721One.setTokenId(ALICE, 5);
+        mockERC721One.setTokenId(ALICE, 6);
+        mockERC721One.setTokenId(ALICE, 7);
+        mockERC721One.setTokenId(ALICE, 8);
         mockERC721Two.setTokenId(BOB, 1);
         mockERC721Two.setTokenId(BOB, 2);
         mockERC721Two.setTokenId(BOB, 3);
+        mockERC721Two.setTokenId(BOB, 4);
+        mockERC721Two.setTokenId(BOB, 5);
+        mockERC721Two.setTokenId(BOB, 6);
+        mockERC721Two.setTokenId(BOB, 7);
+        mockERC721Two.setTokenId(BOB, 8);
 
         // Assertions
-        assertEq(mockERC721One.balanceOf(ALICE), 3);
-        assertEq(mockERC721Two.balanceOf(BOB), 3);
+        assertEq(mockERC721One.balanceOf(ALICE), 8);
+        assertEq(mockERC721Two.balanceOf(BOB), 8);
 
         // Set approvals
         vm.prank(ALICE);
@@ -107,33 +117,36 @@ contract NFTLendingTest is BaseTest {
         return (totalRepayment, interest);
     }
 
-    function _setupBatchLoanOffers(uint256 numOffers, address nftCollection)
+    function _batchCreateLoanOffers(uint256 numOffers, address nftCollection)
         internal
-        returns (uint256[] memory, uint96[] memory, uint32[] memory, uint64[] memory, uint64[] memory, uint256[] memory)
+        returns (uint256[] memory, uint96[] memory, uint32[] memory, uint64[] memory, uint64[] memory)
     {
         uint96[] memory principalAmounts = new uint96[](numOffers);
         uint32[] memory interestRatesBps = new uint32[](numOffers);
         uint64[] memory loanDurations = new uint64[](numOffers);
         uint64[] memory offerExpiries = new uint64[](numOffers);
-        uint256[] memory interestAmounts = new uint256[](numOffers);
+        uint256 totalPrincipalAmount = 0;
+
         for (uint256 i = 0; i < numOffers; i++) {
-            principalAmounts[i] = uint96(bound(vm.randomUint(), 0.01 ether, 10 ether));
+            uint96 principalAmount = uint96(bound(vm.randomUint(), 0.01 ether, 10 ether));
+            principalAmounts[i] = principalAmount;
+            totalPrincipalAmount += principalAmount;
             interestRatesBps[i] = uint32(bound(vm.randomUint(), minInterestRateBps, maxInterestRateBps));
             loanDurations[i] = uint64(bound(vm.randomUint(), minLoanDuration, maxLoanDuration));
-            offerExpiries[i] = uint64(block.timestamp + loanDurations[i]);
+            offerExpiries[i] = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
         }
 
+        vm.startPrank(ALICE);
+        // Deposit wrapped native, and approve NFTLending to spend
+        mockWrappedNative.deposit{value: totalPrincipalAmount}();
+        mockWrappedNative.approve(address(nftLending), totalPrincipalAmount);
         // Create loan offers
-        vm.prank(ALICE);
         uint256[] memory loanOfferIds = nftLending.batchCreateLoanOffers(
             nftCollection, principalAmounts, interestRatesBps, loanDurations, offerExpiries
         );
+        vm.stopPrank();
 
-        for (uint256 i = 0; i < numOffers; i++) {
-            interestAmounts[i] = _calculateInterest(principalAmounts[i], interestRatesBps[i], loanDurations[i]);
-        }
-
-        return (loanOfferIds, principalAmounts, interestRatesBps, loanDurations, offerExpiries, interestAmounts);
+        return (loanOfferIds, principalAmounts, interestRatesBps, loanDurations, offerExpiries);
     }
 
     function _acceptBatchLoanOffers(uint256[] memory loanOfferIds) internal returns (uint256[] memory) {
@@ -259,6 +272,50 @@ contract NFTLendingTest is BaseTest {
         vm.stopPrank();
     }
 
+    function testCreateLoanOfferRevertsWhenLenderInsufficientWrappedNativeBalance() public {
+        // Initialize variables
+        uint96 principal = 10 ether;
+        uint64 offerExpiry = uint64(block.timestamp) + DEFAULT_OFFER_EXPIRY;
+
+        // Create loan offer with lender insufficient wrapped native balance
+        vm.startPrank(ALICE);
+        mockWrappedNative.deposit{value: principal - 1 wei}(); // Deposit less than principal
+        mockWrappedNative.approve(address(nftLending), principal);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NFTLending.LenderInsufficientWrappedNativeBalance.selector,
+                mockWrappedNative.balanceOf(ALICE),
+                principal
+            )
+        );
+        nftLending.createLoanOffer(
+            address(mockERC721One), principal, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry
+        );
+        vm.stopPrank();
+    }
+
+    function testCreateLoanOfferRevertsWhenLenderInsufficientWrappedNativeAllowance() public {
+        // Initialize variables
+        uint96 principal = 10 ether;
+        uint64 offerExpiry = uint64(block.timestamp) + DEFAULT_OFFER_EXPIRY;
+
+        // Create loan offer with lender insufficient wrapped native allowance
+        vm.startPrank(ALICE);
+        mockWrappedNative.deposit{value: principal}();
+        mockWrappedNative.approve(address(nftLending), principal - 1 wei); // Approve less than principal
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NFTLending.LenderInsufficientWrappedNativeAllowance.selector,
+                mockWrappedNative.allowance(ALICE, address(nftLending)),
+                principal
+            )
+        );
+        nftLending.createLoanOffer(
+            address(mockERC721One), principal, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry
+        );
+        vm.stopPrank();
+    }
+
     function testCreateLoanOfferIncrementsNextOfferId() public {
         // Initialize variables
         uint256 nextOfferId = nftLending.getLoanOfferCount();
@@ -316,6 +373,159 @@ contract NFTLendingTest is BaseTest {
             address(mockERC721One), DEFAULT_PRINCIPAL, DEFAULT_INTEREST_RATE_BPS, DEFAULT_DURATION, offerExpiry
         );
         vm.stopPrank();
+    }
+
+    function testBatchCreateLoanOffersRevertsWhenBatchSizeIsZero() public {
+        // Initialize variables
+        uint96[] memory principalAmounts = new uint96[](0);
+        uint32[] memory interestRatesBps = new uint32[](0);
+        uint64[] memory loanDurations = new uint64[](0);
+        uint64[] memory offerExpiries = new uint64[](0);
+
+        vm.prank(ALICE);
+        // Create loan offers with batch size 0
+        vm.expectRevert(NFTLending.BatchLengthCannotBeZero.selector);
+        nftLending.batchCreateLoanOffers(
+            address(mockERC721One), principalAmounts, interestRatesBps, loanDurations, offerExpiries
+        );
+    }
+
+    function testBatchCreateLoanOffersRevertsWhenBatchSizeExceedsLimit() public {
+        // Initialize variables
+        uint256 batchLimit = nftLending.getBatchLimit();
+        uint256 batchSize = batchLimit + 1; // Batch size exceeds limit
+        uint96[] memory principalAmounts = new uint96[](batchSize);
+        uint32[] memory interestRatesBps = new uint32[](batchSize);
+        uint64[] memory loanDurations = new uint64[](batchSize);
+        uint64[] memory offerExpiries = new uint64[](batchSize);
+
+        vm.prank(ALICE);
+        // Create loan offers
+        vm.expectRevert(abi.encodeWithSelector(NFTLending.BatchLimitExceeded.selector, batchSize, batchLimit));
+        nftLending.batchCreateLoanOffers(
+            address(mockERC721One), principalAmounts, interestRatesBps, loanDurations, offerExpiries
+        );
+    }
+
+    function testBatchCreateLoanOffersRevertsWhenInputParameterLengthMismatch() public {
+        // Initialize variables
+        uint96[] memory principalAmounts = new uint96[](1);
+        uint32[] memory interestRatesBps = new uint32[](2); // Interest length is longer than principal amounts, loan durations, and offer expiries
+        uint64[] memory loanDurations = new uint64[](1);
+        uint64[] memory offerExpiries = new uint64[](1);
+
+        vm.prank(ALICE);
+        // Create loan offers
+        vm.expectRevert(NFTLending.InputParameterLengthMismatch.selector);
+        nftLending.batchCreateLoanOffers(
+            address(mockERC721One), principalAmounts, interestRatesBps, loanDurations, offerExpiries
+        );
+    }
+
+    function testBatchCreateLoanOffersRevertsWhenLenderInsufficientWrappedNativeBalance() public {
+        // Initialize variables
+        uint256 numOffers = 3;
+        uint96[] memory principalAmounts = new uint96[](numOffers);
+        uint32[] memory interestRatesBps = new uint32[](numOffers);
+        uint64[] memory loanDurations = new uint64[](numOffers);
+        uint64[] memory offerExpiries = new uint64[](numOffers);
+        uint256 totalPrincipalAmount = 0;
+
+        for (uint256 i = 0; i < numOffers; i++) {
+            uint96 principalAmount = uint96(bound(vm.randomUint(), 0.01 ether, 10 ether));
+            principalAmounts[i] = principalAmount;
+            totalPrincipalAmount += principalAmount;
+            interestRatesBps[i] = uint32(bound(vm.randomUint(), minInterestRateBps, maxInterestRateBps));
+            loanDurations[i] = uint64(bound(vm.randomUint(), minLoanDuration, maxLoanDuration));
+            offerExpiries[i] = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
+        }
+
+        vm.startPrank(ALICE);
+        // Deposit insufficient wrapped native balance
+        mockWrappedNative.deposit{value: totalPrincipalAmount - 1 wei}(); // Deposit less than total principal amount
+        mockWrappedNative.approve(address(nftLending), totalPrincipalAmount);
+        // Create loan offers
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NFTLending.LenderInsufficientWrappedNativeBalance.selector,
+                mockWrappedNative.balanceOf(ALICE),
+                totalPrincipalAmount
+            )
+        );
+        nftLending.batchCreateLoanOffers(
+            address(mockERC721One), principalAmounts, interestRatesBps, loanDurations, offerExpiries
+        );
+        vm.stopPrank();
+    }
+
+    function testBatchCreateLoanOffersRevertsWhenLenderInsufficientWrappedNativeAllowance() public {
+        // Initialize variables
+        uint256 numOffers = 3;
+        uint96[] memory principalAmounts = new uint96[](numOffers);
+        uint32[] memory interestRatesBps = new uint32[](numOffers);
+        uint64[] memory loanDurations = new uint64[](numOffers);
+        uint64[] memory offerExpiries = new uint64[](numOffers);
+        uint256 totalPrincipalAmount = 0;
+
+        for (uint256 i = 0; i < numOffers; i++) {
+            uint96 principalAmount = uint96(bound(vm.randomUint(), 0.01 ether, 10 ether));
+            principalAmounts[i] = principalAmount;
+            totalPrincipalAmount += principalAmount;
+            interestRatesBps[i] = uint32(bound(vm.randomUint(), minInterestRateBps, maxInterestRateBps));
+            loanDurations[i] = uint64(bound(vm.randomUint(), minLoanDuration, maxLoanDuration));
+            offerExpiries[i] = uint64(block.timestamp + DEFAULT_OFFER_EXPIRY);
+        }
+
+        vm.startPrank(ALICE);
+        // Approve insufficient wrapped native allowance
+        mockWrappedNative.deposit{value: totalPrincipalAmount}();
+        mockWrappedNative.approve(address(nftLending), totalPrincipalAmount - 1 wei); // Approve less than total principal amount
+        // Create loan offers
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                NFTLending.LenderInsufficientWrappedNativeAllowance.selector,
+                mockWrappedNative.allowance(ALICE, address(nftLending)),
+                totalPrincipalAmount
+            )
+        );
+        nftLending.batchCreateLoanOffers(
+            address(mockERC721One), principalAmounts, interestRatesBps, loanDurations, offerExpiries
+        );
+        vm.stopPrank();
+    }
+
+    function testBatchCreateLoanOffersCorrectlyCreatesLoanOffers() public {
+        uint256 numOffers = 8;
+        uint256 preOfferCount = nftLending.getLoanOfferCount();
+
+        (
+            uint256[] memory loanOfferIds,
+            uint96[] memory principalAmounts,
+            uint32[] memory interestRatesBps,
+            uint64[] memory loanDurations,
+            uint64[] memory offerExpiries
+        ) = _batchCreateLoanOffers(numOffers, address(mockERC721One));
+
+        // Verify correct number of offers returned
+        assertEq(loanOfferIds.length, numOffers);
+
+        // Verify offer count incremented correctly
+        assertEq(nftLending.getLoanOfferCount(), preOfferCount + numOffers);
+
+        // Verify each offer's details
+        for (uint256 i = 0; i < numOffers; i++) {
+            // Verify sequential IDs
+            assertEq(loanOfferIds[i], preOfferCount + i);
+
+            NFTLending.LoanOffer memory offer = nftLending.getLoanOffer(loanOfferIds[i]);
+            assertEq(offer.lender, ALICE);
+            assertEq(offer.nftCollection, address(mockERC721One));
+            assertEq(offer.principal, principalAmounts[i]);
+            assertEq(offer.interestRateBps, interestRatesBps[i]);
+            assertEq(offer.loanDuration, loanDurations[i]);
+            assertEq(offer.offerExpiry, offerExpiries[i]);
+            assertEq(offer.active, true);
+        }
     }
 
     /*////////////////////////////////////////////////////////////////
@@ -469,13 +679,98 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(mockERC721Two.balanceOf(address(nftLending)), 1);
-        assertEq(mockERC721Two.balanceOf(BOB), 2);
+        assertEq(mockERC721Two.balanceOf(BOB), 7);
         assertEq(mockERC721Two.ownerOf(tokenId), address(nftLending));
         assertEq(mockWrappedNative.balanceOf(BOB), preBobBalance + loanAmountAfterFee);
         assertEq(mockWrappedNative.balanceOf(ALICE), preAliceBalance - DEFAULT_PRINCIPAL);
         assertEq(mockWrappedNative.balanceOf(treasury), loanFee);
     }
 
+    function testBatchAcceptLoanOffersRevertsWhenBatchSizeIsZero() public {
+        // Initialize variables
+        uint256[] memory offerIds = new uint256[](0);
+        uint256[] memory tokenIds = new uint256[](0);
+
+        vm.prank(BOB);
+        vm.expectRevert(NFTLending.BatchLengthCannotBeZero.selector);
+        nftLending.batchAcceptLoanOffers(offerIds, tokenIds);
+    }
+
+    function testBatchAcceptLoanOffersRevertsWhenBatchSizeExceedsLimit() public {
+        // Initialize variables
+        uint256 batchLimit = nftLending.getBatchLimit();
+        uint256 batchSize = batchLimit + 1; // Batch size exceeds limit
+        uint256[] memory offerIds = new uint256[](batchSize);
+        uint256[] memory tokenIds = new uint256[](batchSize);
+
+        vm.prank(BOB);
+        vm.expectRevert(abi.encodeWithSelector(NFTLending.BatchLimitExceeded.selector, batchSize, batchLimit));
+        nftLending.batchAcceptLoanOffers(offerIds, tokenIds);
+    }
+
+    function testBatchAcceptLoanOffersRevertsWhenOfferIdsLengthMismatch() public {
+        // Initialize variables
+        uint256 numOffers = 2;
+
+        // Create loan offers
+        (uint256[] memory loanOfferIds,,,,) = _batchCreateLoanOffers(numOffers, address(mockERC721One));
+
+        uint256[] memory offerIds = loanOfferIds;
+        uint256[] memory tokenIds = new uint256[](numOffers + 1); // Token IDs length is longer than offer IDs
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+        tokenIds[2] = 3;
+
+        vm.prank(BOB);
+        // Accept loan offers
+        vm.expectRevert(NFTLending.InputParameterLengthMismatch.selector);
+        nftLending.batchAcceptLoanOffers(offerIds, tokenIds);
+    }
+
+    function testBatchAcceptLoanOffersCorrectlyAcceptsLoanOffers() public {
+        // Initialize variables
+        uint256 numOffers = 2;
+        uint256 preLoanCount = nftLending.getLoanCount();
+
+        // Create loan offers
+        (
+            uint256[] memory loanOfferIds,
+            uint96[] memory principalAmounts,
+            uint32[] memory interestRatesBps,
+            uint64[] memory loanDurations,
+        ) = _batchCreateLoanOffers(numOffers, address(mockERC721Two));
+        uint256[] memory tokenIds = new uint256[](numOffers);
+        for (uint256 i = 0; i < numOffers; i++) {
+            tokenIds[i] = i + 1;
+        }
+
+        vm.prank(BOB);
+        uint256[] memory loanIds = nftLending.batchAcceptLoanOffers(loanOfferIds, tokenIds);
+
+        // Assertions
+        assertEq(loanIds.length, numOffers);
+
+        for (uint256 i = 0; i < numOffers; i++) {
+            assertEq(loanIds[i], preLoanCount + i);
+
+            NFTLending.Loan memory loan = nftLending.getLoanDetails(loanIds[i]);
+            assertEq(loan.borrower, BOB);
+            assertEq(loan.lender, ALICE);
+            assertEq(loan.nftCollection, address(mockERC721Two));
+            assertEq(loan.tokenId, tokenIds[i]);
+            assertEq(loan.principal, principalAmounts[i]);
+            assertEq(loan.interestRateBps, interestRatesBps[i]);
+            assertEq(loan.loanDuration, loanDurations[i]);
+            assertEq(loan.fee, _calculateLoanFee(principalAmounts[i]));
+            assertEq(loan.repaid, false);
+            assertEq(loan.collateralClaimed, false);
+            assertEq(loan.startTime, block.timestamp);
+            assertEq(loan.loanDuration, loanDurations[i]);
+            assertEq(loan.interestRateBps, interestRatesBps[i]);
+            assertEq(loan.repaid, false);
+            assertEq(loan.collateralClaimed, false);
+        }
+    }
     /*////////////////////////////////////////////////////////////////
                          CANCEL LOAN OFFER TESTS
     ////////////////////////////////////////////////////////////////*/
@@ -723,8 +1018,8 @@ contract NFTLendingTest is BaseTest {
         );
 
         // Get pre-balances
-        uint256 preBobBalance = mockWrappedNative.balanceOf(BOB);
         uint256 preAliceBalance = mockWrappedNative.balanceOf(ALICE);
+
         // Accept loan offer
         vm.startPrank(BOB);
         uint256 loanId = nftLending.acceptLoanOffer(loanOfferId, tokenId);
@@ -737,10 +1032,9 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(mockERC721Two.balanceOf(address(nftLending)), 0);
-        assertEq(mockERC721Two.balanceOf(BOB), 3);
+        assertEq(mockERC721Two.balanceOf(BOB), 8);
         assertEq(mockERC721Two.ownerOf(tokenId), BOB);
         assertEq(mockWrappedNative.balanceOf(BOB), 0);
-        assertEq(mockWrappedNative.balanceOf(BOB), preBobBalance);
         assertEq(mockWrappedNative.balanceOf(ALICE), preAliceBalance + interest);
     }
 
@@ -755,7 +1049,6 @@ contract NFTLendingTest is BaseTest {
         );
 
         // Get pre-balances
-        uint256 preBobBalance = mockWrappedNative.balanceOf(BOB);
         uint256 preAliceBalance = mockWrappedNative.balanceOf(ALICE);
 
         // Accept loan offer
@@ -771,10 +1064,9 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(mockERC721Two.balanceOf(address(nftLending)), 0);
-        assertEq(mockERC721Two.balanceOf(BOB), 3);
+        assertEq(mockERC721Two.balanceOf(BOB), 8);
         assertEq(mockERC721Two.ownerOf(tokenId), BOB);
         assertEq(mockWrappedNative.balanceOf(BOB), 0);
-        assertEq(mockWrappedNative.balanceOf(BOB), preBobBalance);
         assertEq(mockWrappedNative.balanceOf(ALICE), preAliceBalance + interest);
     }
 
@@ -966,6 +1258,6 @@ contract NFTLendingTest is BaseTest {
         assertEq(mockERC721Two.balanceOf(address(nftLending)), 0);
         assertEq(mockERC721Two.balanceOf(ALICE), 1);
         assertEq(mockERC721Two.ownerOf(tokenId), ALICE);
-        assertEq(mockERC721Two.balanceOf(BOB), 2);
+        assertEq(mockERC721Two.balanceOf(BOB), 7);
     }
 }
