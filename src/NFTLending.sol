@@ -254,7 +254,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         }
     }
 
-    function batchRepayLoans(uint256[] calldata loanIds) external payable nonReentrant {
+    function batchRepayLoans(uint256[] calldata loanIds) external nonReentrant {
         _validateBatchSize(loanIds.length);
 
         for (uint256 i = 0; i < loanIds.length; i++) {
@@ -274,8 +274,8 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
         whitelistedCollections[collection] = status;
     }
 
-    function setLoanFeeBps(uint256 newLoanFeeBps) external onlyOwner {
-        _loanFeeBps = newLoanFeeBps;
+    function setLoanFeeBps(uint256 loanFeeBps) external onlyOwner {
+        _loanFeeBps = loanFeeBps;
     }
 
     function setMinLoanDuration(uint256 minLoanDuration) external onlyOwner {
