@@ -32,8 +32,8 @@ contract HelperConfig is Script {
         MockWrappedNative mockWrappedNative = new MockWrappedNative();
 
         return NetworkConfig({
-            deployer: vm.envAddress("DEFAULT_ANVIL_DEPLOYER"),
-            treasuryAddress: 0x0920b96EF597b3a5cEB7994482ADa8b368D8cAD9,
+            deployer: vm.envAddress("DEFAULT_ANVIL_DEPLOYER"), // Change to your deployer address
+            treasuryAddress: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, // Change to your treasury address
             wrappedNativeToken: address(mockWrappedNative),
             loanFeeBps: 500, // 5% loan fee
             minLoanDuration: 1 days,
@@ -46,8 +46,8 @@ contract HelperConfig is Script {
 
     function getHyperEvmConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            deployer: vm.envAddress("DEFAULT_ANVIL_DEPLOYER"),
-            treasuryAddress: 0x0920b96EF597b3a5cEB7994482ADa8b368D8cAD9,
+            deployer: vm.envAddress("DEFAULT_ANVIL_DEPLOYER"), // Change to your deployer address
+            treasuryAddress: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, // Change to your treasury address
             wrappedNativeToken: 0x5555555555555555555555555555555555555555,
             loanFeeBps: 500, // 5% loan fee
             minLoanDuration: 1 days,
