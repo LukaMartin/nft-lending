@@ -247,7 +247,3 @@ nft-lending/
 MIT
 
 ---
-
-<p align="center">
-  Built with ❤️ using <a href="https://book.getfoundry.sh/">Foundry</a>
-</p>
