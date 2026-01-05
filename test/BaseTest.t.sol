@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {NFTLending} from "src/NFTLending.sol";
 import {Test} from "forge-std/Test.sol";
-import {MockERC721} from "test/mocks/mockERC721.sol";
+import {MockERC721} from "test/mocks/MockERC721.sol";
 import {MockWrappedNative} from "test/mocks/MockWrappedNative.sol";
 import {DeployNFTLending} from "script/DeployNFTLending.s.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
