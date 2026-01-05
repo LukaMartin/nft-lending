@@ -29,6 +29,14 @@ contract NFTLendingTest is BaseTest {
     event LoanRepaid(uint256 loanId, address indexed borrower);
     event CollateralClaimed(uint256 loanId, address indexed lender);
     event LoanOfferCanceled(uint256 offerId, address indexed lender);
+    event CollectionWhitelisted(address indexed collection, bool status);
+    event LoanFeeBpsSet(uint256 loanFeeBps);
+    event MinLoanDurationSet(uint256 minLoanDuration);
+    event MaxLoanDurationSet(uint256 maxLoanDuration);
+    event MinInterestRateSet(uint256 minInterestRateBps);
+    event MaxInterestRateSet(uint256 maxInterestRateBps);
+    event TreasuryAddressSet(address treasuryAddress);
+    event BatchLimitSet(uint256 batchLimit);
 
     function setUp() public virtual override {
         BaseTest.setUp();
@@ -1497,6 +1505,16 @@ contract NFTLendingTest is BaseTest {
         assertEq(nftLending.isCollectionWhitelisted(collection), false);
     }
 
+    function testSetCollectionWhitelistedEmitsCollectionWhitelistedEvent() public {
+        address collection = makeAddr("newCollection");
+
+        vm.expectEmit(true, true, true, true);
+        emit CollectionWhitelisted(collection, true);
+
+        vm.prank(deployer);
+        nftLending.setCollectionWhitelisted(collection, true);
+    }
+
     // setLoanFeeBps
     function testSetLoanFeeBpsRevertsWhenNotOwner() public {
         vm.prank(ALICE);
@@ -1514,6 +1532,16 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(nftLending.getLoanFeeBps(), newLoanFeeBps);
+    }
+
+    function testSetLoanFeeBpsEmitsLoanFeeBpsSetEvent() public {
+        uint256 newLoanFeeBps = 500;
+
+        vm.expectEmit(true, true, true, true);
+        emit LoanFeeBpsSet(newLoanFeeBps);
+
+        vm.prank(deployer);
+        nftLending.setLoanFeeBps(newLoanFeeBps);
     }
 
     // setMinLoanDuration
@@ -1535,6 +1563,16 @@ contract NFTLendingTest is BaseTest {
         assertEq(nftLending.getMinLoanDuration(), newMinLoanDuration);
     }
 
+    function testSetMinLoanDurationEmitsMinLoanDurationSetEvent() public {
+        uint256 newMinLoanDuration = 2 days;
+
+        vm.expectEmit(true, true, true, true);
+        emit MinLoanDurationSet(newMinLoanDuration);
+
+        vm.prank(deployer);
+        nftLending.setMinLoanDuration(newMinLoanDuration);
+    }
+
     // setMaxLoanDuration
     function testSetMaxLoanDurationRevertsWhenNotOwner() public {
         vm.prank(ALICE);
@@ -1552,6 +1590,16 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(nftLending.getMaxLoanDuration(), newMaxLoanDuration);
+    }
+
+    function testSetMaxLoanDurationEmitsMaxLoanDurationSetEvent() public {
+        uint256 newMaxLoanDuration = 60 days;
+
+        vm.expectEmit(true, true, true, true);
+        emit MaxLoanDurationSet(newMaxLoanDuration);
+
+        vm.prank(deployer);
+        nftLending.setMaxLoanDuration(newMaxLoanDuration);
     }
 
     // setMinInterestRate
@@ -1573,6 +1621,16 @@ contract NFTLendingTest is BaseTest {
         assertEq(nftLending.getMinInterestRate(), newMinInterestRateBps);
     }
 
+    function testSetMinInterestRateEmitsMinInterestRateSetEvent() public {
+        uint256 newMinInterestRateBps = 50;
+
+        vm.expectEmit(true, true, true, true);
+        emit MinInterestRateSet(newMinInterestRateBps);
+
+        vm.prank(deployer);
+        nftLending.setMinInterestRate(newMinInterestRateBps);
+    }
+
     // setMaxInterestRate
     function testSetMaxInterestRateRevertsWhenNotOwner() public {
         vm.prank(ALICE);
@@ -1590,6 +1648,16 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(nftLending.getMaxInterestRate(), newMaxInterestRateBps);
+    }
+
+    function testSetMaxInterestRateEmitsMaxInterestRateSetEvent() public {
+        uint256 newMaxInterestRateBps = 50000;
+
+        vm.expectEmit(true, true, true, true);
+        emit MaxInterestRateSet(newMaxInterestRateBps);
+
+        vm.prank(deployer);
+        nftLending.setMaxInterestRate(newMaxInterestRateBps);
     }
 
     // setTreasuryAddress
@@ -1623,6 +1691,16 @@ contract NFTLendingTest is BaseTest {
         assertEq(mockWrappedNative.balanceOf(newTreasuryAddress), loanFee);
     }
 
+    function testSetTreasuryAddressEmitsTreasuryAddressSetEvent() public {
+        address newTreasuryAddress = makeAddr("newTreasury");
+
+        vm.expectEmit(true, true, true, true);
+        emit TreasuryAddressSet(newTreasuryAddress);
+
+        vm.prank(deployer);
+        nftLending.setTreasuryAddress(newTreasuryAddress);
+    }
+
     // setBatchLimit
     function testSetBatchLimitRevertsWhenNotOwner() public {
         vm.prank(ALICE);
@@ -1640,6 +1718,16 @@ contract NFTLendingTest is BaseTest {
 
         // Assertions
         assertEq(nftLending.getBatchLimit(), newBatchLimit);
+    }
+
+    function testSetBatchLimitEmitsBatchLimitSetEvent() public {
+        uint256 newBatchLimit = 100;
+
+        vm.expectEmit(true, true, true, true);
+        emit BatchLimitSet(newBatchLimit);
+
+        vm.prank(deployer);
+        nftLending.setBatchLimit(newBatchLimit);
     }
 
     /*////////////////////////////////////////////////////////////////

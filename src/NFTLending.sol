@@ -103,6 +103,14 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     event LoanRepaid(uint256 loanId, address indexed borrower);
     event CollateralClaimed(uint256 loanId, address indexed lender);
     event LoanOfferCanceled(uint256 offerId, address indexed lender);
+    event CollectionWhitelisted(address indexed collection, bool status);
+    event LoanFeeBpsSet(uint256 loanFeeBps);
+    event MinLoanDurationSet(uint256 minLoanDuration);
+    event MaxLoanDurationSet(uint256 maxLoanDuration);
+    event MinInterestRateSet(uint256 minInterestRateBps);
+    event MaxInterestRateSet(uint256 maxInterestRateBps);
+    event TreasuryAddressSet(address treasuryAddress);
+    event BatchLimitSet(uint256 batchLimit);
 
     /*////////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -201,7 +209,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
             revert InputParameterLengthMismatch();
         }
 
-        uint256 totalPrincipalAmount;
+        uint256 totalPrincipalAmount = 0;
         for (uint256 i = 0; i < numOffers; i++) {
             totalPrincipalAmount += principalAmounts[i];
         }
@@ -272,34 +280,42 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
 
     function setCollectionWhitelisted(address collection, bool status) external onlyOwner {
         whitelistedCollections[collection] = status;
+        emit CollectionWhitelisted(collection, status);
     }
 
     function setLoanFeeBps(uint256 loanFeeBps) external onlyOwner {
         _loanFeeBps = loanFeeBps;
+        emit LoanFeeBpsSet(loanFeeBps);
     }
 
     function setMinLoanDuration(uint256 minLoanDuration) external onlyOwner {
         _minLoanDuration = minLoanDuration;
+        emit MinLoanDurationSet(minLoanDuration);
     }
 
     function setMaxLoanDuration(uint256 maxLoanDuration) external onlyOwner {
         _maxLoanDuration = maxLoanDuration;
+        emit MaxLoanDurationSet(maxLoanDuration);
     }
 
     function setMinInterestRate(uint256 minInterestRateBps) external onlyOwner {
         _minInterestRateBps = minInterestRateBps;
+        emit MinInterestRateSet(minInterestRateBps);
     }
 
     function setMaxInterestRate(uint256 maxInterestRateBps) external onlyOwner {
         _maxInterestRateBps = maxInterestRateBps;
+        emit MaxInterestRateSet(maxInterestRateBps);
     }
 
     function setTreasuryAddress(address treasuryAddress) external onlyOwner {
         _treasuryAddress = treasuryAddress;
+        emit TreasuryAddressSet(treasuryAddress);
     }
 
     function setBatchLimit(uint256 batchLimit) external onlyOwner {
         _batchLimit = batchLimit;
+        emit BatchLimitSet(batchLimit);
     }
 
     /*////////////////////////////////////////////////////////////////
