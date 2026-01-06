@@ -2,6 +2,8 @@
 
 A fully on-chain peer-to-peer NFT-collateralized lending protocol built with Solidity. Lenders create loan offers for whitelisted NFT collections, and borrowers can accept these offers by depositing their NFTs as collateral.
 
+> 📚 **Learning Project** — Built to practice Solidity development, testing patterns, and DeFi mechanics. Feedback welcome!
+
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.26-363636?logo=solidity)
 ![Foundry](https://img.shields.io/badge/Foundry-Framework-yellow)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -183,6 +185,16 @@ forge test --gas-report
 forge coverage
 ```
 
+### Coverage
+
+| Metric | Coverage |
+|--------|----------|
+| Lines | 98%+ |
+| Branches | 100% |
+| Functions | 100% |
+
+Unit tests + fuzz tests for all core functionality.
+
 ---
 
 ## Configuration
@@ -210,7 +222,6 @@ Interest = Principal × InterestRateBps × Duration / (10000 × 365 days)
 
 - **ReentrancyGuard** on all state-changing functions
 - **Ownable2Step** for safe ownership transfers
-- **Pausable** for emergency stops
 - **SafeERC20** for token transfers
 - **Collection Whitelist** — only approved NFTs accepted
 
