@@ -37,8 +37,4 @@ contract MockERC721 {
     function setApprovalForAll(address operator, bool approved) external {
         _operatorApprovals[msg.sender][operator] = approved;
     }
-
-    function isApprovedForAll(address owner, address operator) external view returns (bool) {
-        return _operatorApprovals[owner][operator];
-    }
 }

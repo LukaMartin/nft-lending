@@ -823,6 +823,7 @@ contract NFTLendingTest is BaseTest {
             assertEq(loan.collateralClaimed, false);
         }
     }
+
     /*////////////////////////////////////////////////////////////////
                          CANCEL LOAN OFFER TESTS
     ////////////////////////////////////////////////////////////////*/
@@ -1307,7 +1308,7 @@ contract NFTLendingTest is BaseTest {
         NFTLending.Loan memory loan = nftLending.getLoanDetails(loanId);
         uint256 loanEndTimestamp = loan.startTime + loan.loanDuration;
 
-        // Skip just over 30 days
+        // Warp right up to loan duration
         vm.warp(block.timestamp + DEFAULT_DURATION);
 
         // Try to claim collateral
@@ -1479,7 +1480,6 @@ contract NFTLendingTest is BaseTest {
                             OWNER SETTER TESTS
     ////////////////////////////////////////////////////////////////*/
 
-    // setCollectionWhitelisted
     function testSetCollectionWhitelistedRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1515,7 +1515,6 @@ contract NFTLendingTest is BaseTest {
         nftLending.setCollectionWhitelisted(collection, true);
     }
 
-    // setLoanFeeBps
     function testSetLoanFeeBpsRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1544,7 +1543,6 @@ contract NFTLendingTest is BaseTest {
         nftLending.setLoanFeeBps(newLoanFeeBps);
     }
 
-    // setMinLoanDuration
     function testSetMinLoanDurationRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1573,7 +1571,6 @@ contract NFTLendingTest is BaseTest {
         nftLending.setMinLoanDuration(newMinLoanDuration);
     }
 
-    // setMaxLoanDuration
     function testSetMaxLoanDurationRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1602,7 +1599,6 @@ contract NFTLendingTest is BaseTest {
         nftLending.setMaxLoanDuration(newMaxLoanDuration);
     }
 
-    // setMinInterestRate
     function testSetMinInterestRateRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1631,7 +1627,6 @@ contract NFTLendingTest is BaseTest {
         nftLending.setMinInterestRate(newMinInterestRateBps);
     }
 
-    // setMaxInterestRate
     function testSetMaxInterestRateRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1660,11 +1655,16 @@ contract NFTLendingTest is BaseTest {
         nftLending.setMaxInterestRate(newMaxInterestRateBps);
     }
 
-    // setTreasuryAddress
     function testSetTreasuryAddressRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
         nftLending.setTreasuryAddress(ALICE);
+    }
+
+    function testSetTreasuryAddressRevertsWhenTreasuryAddressIsZeroAddress() public {
+        vm.prank(deployer);
+        vm.expectRevert(abi.encodeWithSelector(NFTLending.InvalidTreasuryAddress.selector, address(0)));
+        nftLending.setTreasuryAddress(address(0));
     }
 
     function testSetTreasuryAddressCorrectlySetsTreasuryAddress() public {
@@ -1701,7 +1701,6 @@ contract NFTLendingTest is BaseTest {
         nftLending.setTreasuryAddress(newTreasuryAddress);
     }
 
-    // setBatchLimit
     function testSetBatchLimitRevertsWhenNotOwner() public {
         vm.prank(ALICE);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, ALICE));
@@ -1848,5 +1847,9 @@ contract NFTLendingTest is BaseTest {
 
     function testGetBatchLimitReturnsCorrectValue() public view {
         assertEq(nftLending.getBatchLimit(), batchLimit);
+    }
+
+    function testGetTreasuryAddressReturnsCorrectValue() public view {
+        assertEq(nftLending.getTreasuryAddress(), treasury);
     }
 }

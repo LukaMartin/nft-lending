@@ -4,7 +4,6 @@ pragma solidity 0.8.26;
 
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -18,7 +17,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  *         Interest is calculated pro-rata based on actual loan duration. If the borrower defaults,
  *         the lender can claim the NFT collateral.
  */
-contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver {
+contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
     using SafeERC20 for IERC20;
 
     /*////////////////////////////////////////////////////////////////
@@ -711,6 +710,14 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, Pausable, IERC721Receiver 
     /*////////////////////////////////////////////////////////////////
                       EXTERNAL VIEW & PURE FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Gets the treasury address
+     * @return The treasury address
+     */
+    function getTreasuryAddress() external view returns (address) {
+        return _treasuryAddress;
+    }
 
     /**
      * @notice Gets the total number of loan offers created
