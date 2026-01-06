@@ -18,17 +18,17 @@ contract NFTLendingTest is BaseTest {
 
     // Events
     event LoanOfferCreated(
-        uint256 offerId,
+        uint256 indexed offerId,
         address indexed lender,
         address indexed nftCollection,
         uint256 interestRate,
         uint64 loanDuration,
         uint64 offerExpiry
     );
-    event LoanAccepted(uint256 loanId, uint256 offerId, address indexed borrower, uint256 tokenId);
-    event LoanRepaid(uint256 loanId, address indexed borrower);
-    event CollateralClaimed(uint256 loanId, address indexed lender);
-    event LoanOfferCanceled(uint256 offerId, address indexed lender);
+    event LoanAccepted(uint256 indexed loanId, uint256 indexed offerId, address indexed borrower, uint256 tokenId);
+    event LoanRepaid(uint256 indexed loanId, address indexed borrower);
+    event CollateralClaimed(uint256 indexed loanId, address indexed lender);
+    event LoanOfferCanceled(uint256 indexed offerId, address indexed lender);
 
     function setUp() public virtual override {
         BaseTest.setUp();
