@@ -35,7 +35,6 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
     error InvalidOfferExpiry(uint64 offerExpiry, uint256 currentTimestamp);
     error OfferInactive();
     error OfferExpired();
-    error NFTCollectionMismatch(address expectedNftCollection, address providedNftCollection);
     error NotNFTOwner(address expectedNftOwner, address functionCaller);
     error NotLender(address expectedLender, address functionCaller);
     error NotBorrower(address expectedBorrower, address functionCaller);
@@ -78,10 +77,12 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
                              STATE VARIABLES
     ////////////////////////////////////////////////////////////////*/
 
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+    address private immutable WRAPPED_NATIVE;
+
     uint256 private _nextOfferId;
     uint256 private _nextLoanId;
     address private _treasuryAddress;
-    address private _wrappedNative;
     uint256 private _loanFeeBps;
     uint256 private _minLoanDuration;
     uint256 private _maxLoanDuration;
@@ -119,21 +120,6 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
     event BatchLimitSet(uint256 batchLimit);
 
     /*////////////////////////////////////////////////////////////////
-                                MODIFIERS
-    ////////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Restricts function to only accept whitelisted NFT collections
-     * @param collection The NFT collection address to validate
-     */
-    modifier onlyWhitelistedCollection(address collection) {
-        if (!whitelistedCollections[collection]) {
-            revert CollectionNotWhitelisted(collection);
-        }
-        _;
-    }
-
-    /*////////////////////////////////////////////////////////////////
                                 FUNCTIONS
     ////////////////////////////////////////////////////////////////*/
 
@@ -165,7 +151,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
             revert InvalidWrappedNativeAddress(wrappedNative);
         }
         _treasuryAddress = treasuryAddress;
-        _wrappedNative = wrappedNative;
+        WRAPPED_NATIVE = wrappedNative;
         _loanFeeBps = loanFeeBps;
         _minLoanDuration = minLoanDuration;
         _maxLoanDuration = maxLoanDuration;
@@ -207,7 +193,10 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
         uint32 interestRateBps,
         uint64 loanDuration,
         uint64 offerExpiry
-    ) external onlyWhitelistedCollection(nftCollection) nonReentrant returns (uint256) {
+    ) external nonReentrant returns (uint256) {
+        if (!whitelistedCollections[nftCollection]) {
+            revert CollectionNotWhitelisted(nftCollection);
+        }
         return _createLoanOffer(nftCollection, principal, interestRateBps, loanDuration, offerExpiry);
     }
 
@@ -282,12 +271,12 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
             totalPrincipalAmount += principalAmounts[i];
         }
 
-        uint256 lenderBalance = IERC20(_wrappedNative).balanceOf(msg.sender);
+        uint256 lenderBalance = IERC20(WRAPPED_NATIVE).balanceOf(msg.sender);
         if (totalPrincipalAmount > lenderBalance) {
             revert LenderInsufficientWrappedNativeBalance(lenderBalance, totalPrincipalAmount);
         }
 
-        uint256 lenderAllowance = IERC20(_wrappedNative).allowance(msg.sender, address(this));
+        uint256 lenderAllowance = IERC20(WRAPPED_NATIVE).allowance(msg.sender, address(this));
         if (totalPrincipalAmount > lenderAllowance) {
             revert LenderInsufficientWrappedNativeAllowance(lenderAllowance, totalPrincipalAmount);
         }
@@ -315,15 +304,17 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
         nonReentrant
         returns (uint256[] memory)
     {
-        _validateBatchSize(offerIds.length);
+        uint256 numOffers = offerIds.length;
 
-        if (offerIds.length != tokenIds.length) {
+        _validateBatchSize(numOffers);
+
+        if (numOffers != tokenIds.length) {
             revert InputParameterLengthMismatch();
         }
 
-        uint256[] memory loanIds = new uint256[](offerIds.length);
+        uint256[] memory loanIds = new uint256[](numOffers);
 
-        for (uint256 i = 0; i < offerIds.length; i++) {
+        for (uint256 i = 0; i < numOffers; i++) {
             loanIds[i] = _acceptLoanOffer(offerIds[i], tokenIds[i]);
         }
         return loanIds;
@@ -482,12 +473,12 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
             revert InvalidOfferExpiry(offerExpiry, block.timestamp);
         }
 
-        uint256 lenderBalance = IERC20(_wrappedNative).balanceOf(msg.sender);
+        uint256 lenderBalance = IERC20(WRAPPED_NATIVE).balanceOf(msg.sender);
         if (principal > lenderBalance) {
             revert LenderInsufficientWrappedNativeBalance(lenderBalance, principal);
         }
 
-        uint256 lenderAllowance = IERC20(_wrappedNative).allowance(msg.sender, address(this));
+        uint256 lenderAllowance = IERC20(WRAPPED_NATIVE).allowance(msg.sender, address(this));
         if (principal > lenderAllowance) {
             revert LenderInsufficientWrappedNativeAllowance(lenderAllowance, principal);
         }
@@ -558,8 +549,8 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
         emit LoanAccepted(loanId, offerId, msg.sender, tokenId);
 
         IERC721(nftCollection).safeTransferFrom(msg.sender, address(this), tokenId);
-        IERC20(_wrappedNative).safeTransferFrom(lender, msg.sender, loanAmountAfterFee);
-        IERC20(_wrappedNative).safeTransferFrom(lender, _treasuryAddress, fee);
+        IERC20(WRAPPED_NATIVE).safeTransferFrom(lender, msg.sender, loanAmountAfterFee);
+        IERC20(WRAPPED_NATIVE).safeTransferFrom(lender, _treasuryAddress, fee);
 
         return loanId;
     }
@@ -615,7 +606,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
         emit LoanRepaid(loanId, borrower);
 
         IERC721(loan.nftCollection).safeTransferFrom(address(this), borrower, loan.tokenId);
-        IERC20(_wrappedNative).safeTransferFrom(borrower, loan.lender, totalRepayment);
+        IERC20(WRAPPED_NATIVE).safeTransferFrom(borrower, loan.lender, totalRepayment);
     }
 
     /**
@@ -669,7 +660,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
      * @return The fee amount
      */
     function _calculateLoanFee(uint256 principal) internal view returns (uint256) {
-        return (principal * _loanFeeBps) / 10000;
+        return (principal * _loanFeeBps) / BPS_DENOMINATOR;
     }
 
     /**
@@ -684,7 +675,7 @@ contract NFTLending is Ownable2Step, ReentrancyGuard, IERC721Receiver {
         pure
         returns (uint256)
     {
-        return (principal * interestRateBps * duration) / (10000 * 365 days);
+        return (principal * interestRateBps * duration) / (BPS_DENOMINATOR * 365 days);
     }
 
     /**

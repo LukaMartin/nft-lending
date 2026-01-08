@@ -58,6 +58,8 @@ contract NFTLendingTest is BaseTest {
         mockERC721One.setTokenId(ALICE, 6);
         mockERC721One.setTokenId(ALICE, 7);
         mockERC721One.setTokenId(ALICE, 8);
+        mockERC721One.setTokenId(ALICE, 9);
+        mockERC721One.setTokenId(ALICE, 10);
         mockERC721Two.setTokenId(BOB, 1);
         mockERC721Two.setTokenId(BOB, 2);
         mockERC721Two.setTokenId(BOB, 3);
@@ -66,10 +68,12 @@ contract NFTLendingTest is BaseTest {
         mockERC721Two.setTokenId(BOB, 6);
         mockERC721Two.setTokenId(BOB, 7);
         mockERC721Two.setTokenId(BOB, 8);
+        mockERC721Two.setTokenId(BOB, 9);
+        mockERC721Two.setTokenId(BOB, 10);
 
         // Assertions
-        assertEq(mockERC721One.balanceOf(ALICE), 8);
-        assertEq(mockERC721Two.balanceOf(BOB), 8);
+        assertEq(mockERC721One.balanceOf(ALICE), 10);
+        assertEq(mockERC721Two.balanceOf(BOB), 10);
 
         // Set approvals
         vm.prank(ALICE);
@@ -278,7 +282,7 @@ contract NFTLendingTest is BaseTest {
 
     function testCreateLoanOfferRevertsWhenDurationIsGreaterThanMaxDuration() public {
         // Initialize variables
-        uint64 duration = 30 days + 1 seconds; // Max duration is 30 days
+        uint64 duration = 365 days + 1 seconds; // Max duration is 365 days
         uint64 offerExpiry = uint64(block.timestamp) + duration;
 
         // Create loan offer with duration greater than max duration
@@ -546,7 +550,7 @@ contract NFTLendingTest is BaseTest {
     }
 
     function testBatchCreateLoanOffersCorrectlyCreatesLoanOffers() public {
-        uint256 numOffers = 8;
+        uint256 numOffers = 10;
         uint256 preOfferCount = nftLending.getLoanOfferCount();
 
         (
