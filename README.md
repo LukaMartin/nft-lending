@@ -203,10 +203,10 @@ Unit tests + fuzz tests for all core functionality.
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| Protocol Fee | 5% (500 bps) | Deducted from principal at loan creation |
-| Loan Duration | 1 - 30 days | Allowed range |
+| Protocol Fee | 1% (100 bps) | Deducted from principal at loan creation |
+| Loan Duration | 1 - 365 days | Allowed range |
 | Interest Rate | 1% - 300% APR | Allowed range (basis points) |
-| Batch Limit | 8 | Max items per batch operation |
+| Batch Limit | 10 | Max items per batch operation |
 
 ### Interest Calculation
 

@@ -35,12 +35,12 @@ contract HelperConfig is Script {
             deployer: vm.envAddress("DEFAULT_ANVIL_DEPLOYER"), // Change to your deployer address
             treasuryAddress: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, // Change to your treasury address
             wrappedNativeToken: address(mockWrappedNative),
-            loanFeeBps: 500, // 5% loan fee
+            loanFeeBps: 100, // 5% loan fee
             minLoanDuration: 1 days,
-            maxLoanDuration: 30 days,
+            maxLoanDuration: 365 days,
             minInterestRateBps: 100, // 1% interest
             maxInterestRateBps: 30000, // 300% interest
-            batchLimit: 8
+            batchLimit: 10
         });
     }
 
@@ -49,12 +49,12 @@ contract HelperConfig is Script {
             deployer: vm.envAddress("DEFAULT_ANVIL_DEPLOYER"), // Change to your deployer address
             treasuryAddress: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, // Change to your treasury address
             wrappedNativeToken: 0x5555555555555555555555555555555555555555,
-            loanFeeBps: 500, // 5% loan fee
+            loanFeeBps: 100, // 5% loan fee
             minLoanDuration: 1 days,
-            maxLoanDuration: 30 days,
+            maxLoanDuration: 365 days,
             minInterestRateBps: 100, // 1% interest
             maxInterestRateBps: 30000, // 300% interest
-            batchLimit: 8
+            batchLimit: 10
         });
     }
 }
